@@ -20,6 +20,7 @@ def ensure_indexes(collection):
         collection.create_index("sub_category")
         collection.create_index("product_type")
         collection.create_index("availability")
+        collection.create_index("deleted")  # Add index for deleted field
         print("Indexes created successfully")
     except Exception as e:
         print(f"Error managing indexes: {str(e)}")
@@ -40,6 +41,7 @@ def upload_products_streaming(input_file='products_dedup.json'):
         # Track metrics
         updates = 0
         inserts = 0
+        marked_deleted = 0
         processed_skus: Set[str] = set()
 
         # Process JSON file in chunks
@@ -58,6 +60,9 @@ def upload_products_streaming(input_file='products_dedup.json'):
                     continue
 
                 processed_skus.add(sku)
+                
+                # Add deleted=false to all current products
+                product['deleted'] = False
                 
                 if sku in existing_skus:
                     # Product exists - queue for update
@@ -96,17 +101,23 @@ def upload_products_streaming(input_file='products_dedup.json'):
                 collection.insert_many(insert_batch)
                 inserts += len(insert_batch)
 
-            # Delete products that exist in DB but not in new data
-            skus_to_delete = existing_skus - processed_skus
-            if skus_to_delete:
-                result = collection.delete_many({'sku': {'$in': list(skus_to_delete)}})
-                print(f"Deleted {result.deleted_count} products that are no longer in the source data")
+            # Mark products as deleted if they're not in new data
+            skus_to_mark_deleted = existing_skus - processed_skus
+            if skus_to_mark_deleted:
+                result = collection.update_many(
+                    {'sku': {'$in': list(skus_to_mark_deleted)}},
+                    {'$set': {'deleted': True}}
+                )
+                marked_deleted = result.modified_count
+                print(f"Marked {marked_deleted} products as deleted")
 
         print(f"\nSync Complete:")
         print(f"Updated: {updates} products")
         print(f"Inserted: {inserts} new products")
-        print(f"Deleted: {len(skus_to_delete)} products")
+        print(f"Marked as deleted: {marked_deleted} products")
         print(f"Total products in database: {collection.count_documents({})}")
+        print(f"Active products: {collection.count_documents({'deleted': False})}")
+        print(f"Deleted products: {collection.count_documents({'deleted': True})}")
 
         # Ensure indexes after all operations are complete
         ensure_indexes(collection)

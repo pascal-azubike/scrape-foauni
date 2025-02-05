@@ -1,14 +1,16 @@
 from flask import Flask, jsonify
 import json
 import os
-from main import main  # Import the main scraping function
 import threading
 
 app = Flask(__name__)
 
-# Load the menu structure
-with open('menu_structure.json', 'r') as f:
-    menu_data = json.load(f)
+# Load the menu structure if it exists, otherwise use empty dict
+try:
+    with open('menu_structure.json', 'r') as f:
+        menu_data = json.load(f)
+except FileNotFoundError:
+    menu_data = {"main_menu": []}
 
 # Track scraping status
 scraping_status = {
@@ -20,10 +22,12 @@ scraping_status = {
 def run_scraper():
     global scraping_status
     try:
+        # Import the function only when needed
+        from main import scrape_and_process
         scraping_status["is_running"] = True
         scraping_status["status"] = "running"
-        main()  # Run the main scraping function
-        scraping_status["status"] = "completed"
+        success = scrape_and_process()
+        scraping_status["status"] = "completed" if success else "failed"
     except Exception as e:
         scraping_status["status"] = f"failed: {str(e)}"
     finally:
