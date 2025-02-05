@@ -40,5 +40,6 @@ def main():
     except Exception as e:
         print(f"An error occurred during execution: {str(e)}")
 
+# This ensures the script only runs when explicitly called
 if __name__ == "__main__":
     main() 

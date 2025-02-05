@@ -61,6 +61,8 @@ def start_scrape():
 def get_status():
     return jsonify(scraping_status)
 
+# This ensures the scraping doesn't start automatically
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
+    # Get port from environment variable or default to 10000
+    port = int(os.environ.get('PORT', 10000))
     app.run(host='0.0.0.0', port=port) 
